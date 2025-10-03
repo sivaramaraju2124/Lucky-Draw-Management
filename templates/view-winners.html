@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>View Winners - Lucky Draw Management System</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" 
+          crossorigin="anonymous">
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" 
+          rel="stylesheet">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&family=Roboto:wght@400&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            /* Festive Theme Colors */
+            --bs-primary: #DC143C; /* Deep Pink/Crimson */
+            --bs-secondary: #008080; /* Teal/Accent */
+            --bs-success: #28a745;
+            --bs-info: #FFD700; /* Gold */
+            --bs-dark-text: #333333;
+            --bs-light-bg: #F8F9FA;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: var(--bs-light-bg);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background-color: var(--bs-primary) !important;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .navbar-brand, .nav-link {
+            font-family: 'Poppins', sans-serif;
+            color: white !important;
+        }
+
+        h1, h2, h3 {
+            font-family: 'Poppins', sans-serif;
+            color: var(--bs-dark-text);
+        }
+
+        .table thead {
+            background-color: var(--bs-secondary);
+            color: white;
+        }
+        
+        .main-content {
+            flex: 1; 
+            padding-top: 60px; /* Offset for fixed navbar */
+        }
+
+        .sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+        .sortable i {
+            margin-left: 5px;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('index') }}">
+                <i class="bi bi-gift-fill me-2"></i> Lucky Draw System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                    aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('index') }}">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('add_event') }}">Add Event</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('add_participant') }}">Add Participant</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('draw_winner') }}">Draw Winner</a></li>
+                    <li class="nav-item"><a class="nav-link active" aria-current="page" href="{{ url_for('view_winners') }}">View Winners</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="main-content">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="container mt-3">
+            {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+            {% endfor %}
+            </div>
+        {% endif %}
+        {% endwith %}
+
+        <div class="container my-5">
+
+            <h1 class="text-center mb-4" style="color: var(--bs-primary);">
+                <i class="bi bi-award-fill me-2"></i> Event Winners History
+            </h1>
+            <hr class="mb-5">
+
+            <form method="GET" action="{{ url_for('view_winners') }}" class="row mb-4 g-3 align-items-center">
+                <div class="col-md-6">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" name="search_query" placeholder="Search by Winner or Prize Name" id="winnerSearch">
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <select class="form-select" name="event_filter" id="eventFilter">
+                        <option value="" selected>Filter by All Events</option>
+                        <option value="Diwali">Diwali Grand Raffle</option>
+                        <option value="Dussehra">Dussehra Bumper Prize</option>
+                        <option value="Ganesh">Ganesh Utsav Draw</option>
+                    </select>
+                </div>
+                <div class="col-md-2 text-md-end">
+                    <button type="submit" class="btn btn-outline-secondary"><i class="bi bi-funnel"></i> Apply Filter</button>
+                </div>
+            </form>
+
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle shadow-sm" id="winnersTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="event">Event Name <i class="bi bi-chevron-expand"></i></th>
+                            <th class="sortable" data-sort="winner">Winner Name <i class="bi bi-chevron-expand"></i></th>
+                            <th>Contact Info</th>
+                            <th class="sortable" data-sort="prize">Prize <i class="bi bi-chevron-expand"></i></th>
+                            <th>Draw Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for winner in winners %}
+                        <tr>
+                            <td>{{ winner.event_name }}</td>
+                            <td>{{ winner.winner_name }}</td>
+                            <td>{{ winner.contact_info }}</td>
+                            <td><span class="fw-bold">{{ winner.prize_name }}</span></td>
+                            <td>{{ winner.draw_time }}</td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="5" class="text-center text-muted">No draw winners found in the history.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="text-center mt-4">
+                <a href="#" class="btn btn-primary" style="background-color: var(--bs-primary); border-color: var(--bs-primary);">
+                    <i class="bi bi-cloud-download me-2"></i> Export to CSV
+                </a>
+            </div>
+
+        </div>
+    </div>
+
+    <footer class="footer mt-auto py-3 bg-light border-top">
+        <div class="container text-center">
+            <span class="text-muted">© 2025 Lucky Draw Management System | Designed with Bootstrap 5</span>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" 
+            crossorigin="anonymous"></script>
+
+    <script>
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', () => {
+                const table = document.getElementById('winnersTable');
+                const tbody = table.querySelector('tbody');
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const columnIndex = Array.from(header.parentNode.children).indexOf(header);
+                
+                // Determine sort direction
+                const currentDir = header.getAttribute('data-dir') === 'asc' ? 'desc' : 'asc';
+
+                // Clear existing sort icons
+                document.querySelectorAll('.sortable i').forEach(icon => {
+                    icon.className = 'bi bi-chevron-expand';
+                });
+                
+                // Set new sort icon
+                const icon = header.querySelector('i');
+                if (currentDir === 'asc') {
+                    icon.className = 'bi bi-chevron-up';
+                } else {
+                    icon.className = 'bi bi-chevron-down';
+                }
+
+                // Sorting logic
+                rows.sort((a, b) => {
+                    const aText = a.children[columnIndex].textContent.trim();
+                    const bText = b.children[columnIndex].textContent.trim();
+
+                    if (aText < bText) return currentDir === 'asc' ? -1 : 1;
+                    if (aText > bText) return currentDir === 'asc' ? 1 : -1;
+                    return 0;
+                });
+
+                // Update table
+                rows.forEach(row => tbody.appendChild(row));
+
+                // Update direction attribute
+                header.setAttribute('data-dir', currentDir);
+            });
+        });
+    </script>
+</body>
+</html>
