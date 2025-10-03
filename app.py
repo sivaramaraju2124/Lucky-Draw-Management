@@ -3,13 +3,13 @@ from flask_mysqldb import MySQL
 from datetime import date
 import re # Import regex for validation
 from twilio.rest import Client # Import Twilio client
+import os
 
 # --- Twilio Setup (Requires 'keys.py' in the same directory) ---
 try:
-    import keys
-    ACCOUNT_SID = keys.account_sid
-    AUTH_TOKEN = keys.auth_token
-    TWILIO_NUMBER = keys.twilio_number
+    ACCOUNT_SID = os.environ.get("account_sid")
+    AUTH_TOKEN = os.environ.get("auth_token")
+    TWILIO_NUMBER = os.environ.get("twilio_number")
     TWILIO_CLIENT = Client(ACCOUNT_SID, AUTH_TOKEN)
     TWILIO_ENABLED = True
 except (ImportError, AttributeError) as e:
@@ -26,7 +26,7 @@ app.secret_key = 'your_super_secret_key'
 # MySQL Configuration
 app.config['MYSQL_HOST'] = 'localhost'
 app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = keys.my_sql_pass
+app.config['MYSQL_PASSWORD'] = os.environ.get("my_sql_pass")
 app.config['MYSQL_DB'] = 'lucky_draw_db'
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
