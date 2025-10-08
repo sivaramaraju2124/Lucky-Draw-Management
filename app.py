@@ -27,7 +27,7 @@ DB_CONFIG = {
     'user': os.environ.get("user"),
     'password': os.environ.get("my_sql_pass"),
     'database': os.environ.get("db_name"),
-
+    'port': int(os.environ.get("port", 3306)),
 }
 
 # --- 2. DATABASE CONNECTION MANAGEMENT ---
