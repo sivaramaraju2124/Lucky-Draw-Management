@@ -6,5 +6,6 @@ Werkzeug==2.3.7
 itsdangerous==2.1.2
 click==8.1.6
 twilio
-dotenv
+python-dotenv
 gunicorn
+mysql-connector-python
