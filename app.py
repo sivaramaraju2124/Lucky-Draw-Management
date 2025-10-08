@@ -24,10 +24,10 @@ app = Flask(__name__)
 app.secret_key = 'your_super_secret_key'
 
 # MySQL Configuration
-app.config['MYSQL_HOST'] = 'localhost'
+app.config['MYSQL_HOST'] = os.environ.get("localhost")
 app.config['MYSQL_USER'] = 'root'
 app.config['MYSQL_PASSWORD'] = os.environ.get("my_sql_pass")
-app.config['MYSQL_DB'] = 'lucky_draw_db'
+app.config['MYSQL_DB'] = os.environ.get("db_name")
 app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
 
 mysql = MySQL(app)
