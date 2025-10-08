@@ -24,7 +24,7 @@ app.secret_key = 'your_super_secret_key'
 
 DB_CONFIG = {
     'host': os.environ.get("localhost"),
-    'user': 'root',
+    'user': os.environ.get("user"),
     'password': os.environ.get("my_sql_pass"),
     'database': os.environ.get("db_name"),
 
