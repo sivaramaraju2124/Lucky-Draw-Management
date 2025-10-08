@@ -1,71 +1,83 @@
 from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_mysqldb import MySQL
+import mysql.connector # <<< THE REQUIRED CHANGE: Using the official connector
 from datetime import date
-import re # Import regex for validation
-from twilio.rest import Client # Import Twilio client
+import re
+from twilio.rest import Client
 import os
 
-# --- Twilio Setup (Requires 'keys.py' in the same directory) ---
+# --- Twilio Setup (Requires environment variables) ---
 try:
     ACCOUNT_SID = os.environ.get("account_sid")
     AUTH_TOKEN = os.environ.get("auth_token")
     TWILIO_NUMBER = os.environ.get("twilio_number")
     TWILIO_CLIENT = Client(ACCOUNT_SID, AUTH_TOKEN)
     TWILIO_ENABLED = True
-except (ImportError, AttributeError) as e:
-    print(f"Warning: Twilio setup failed. Check keys.py. Error: {e}")
+except (AttributeError) as e:
+    print(f"Warning: Twilio setup failed. Environment variables not found/set. Error: {e}")
     TWILIO_ENABLED = False
-    
 
 
 app = Flask(__name__)
 
-# --- 1. CONFIGURATION ---
+# --- 1. CONFIGURATION (Standard Python DB Config) ---
 app.secret_key = 'your_super_secret_key'
 
-# MySQL Configuration
-app.config['MYSQL_HOST'] = os.environ.get("localhost")
-app.config['MYSQL_USER'] = 'root'
-app.config['MYSQL_PASSWORD'] = os.environ.get("my_sql_pass")
-app.config['MYSQL_DB'] = os.environ.get("db_name")
-app.config['MYSQL_CURSORCLASS'] = 'DictCursor'
+DB_CONFIG = {
+    'host': os.environ.get("localhost"),
+    'user': 'root',
+    'password': os.environ.get("my_sql_pass"),
+    'database': os.environ.get("db_name"),
 
-mysql = MySQL(app)
+}
 
-# --- 2. HELPER FUNCTIONS ---
+# --- 2. DATABASE CONNECTION MANAGEMENT ---
 
-def send_winner_sms(winner_contact, event_name, prize_name):
-    """Sends an SMS to the winner using Twilio."""
-    if not TWILIO_ENABLED:
-        print("SMS not sent: Twilio is disabled.")
-        return False
-        
+def get_db_connection():
+    """Establishes a new database connection."""
+    return mysql.connector.connect(**DB_CONFIG)
+
+def execute_query(query, params=None, fetch_one=False, commit=False):
+    """Handles connection, cursor, query execution, and closing."""
+    conn = None
+    result = None
     try:
-        message_body = (
-            f"🎉 Congratulations! You have won the {prize_name} "
-            f"in the {event_name} Lucky Draw! Contact admin to claim your prize."
-        )
+        conn = get_db_connection()
+        # Use dictionary=True in the cursor to get DictCursor-like behavior
+        cursor = conn.cursor(dictionary=True) 
         
-        message = TWILIO_CLIENT.messages.create(
-            body=message_body,
-            from_=TWILIO_NUMBER,
-            to=winner_contact
-        )
-        print(f"SMS Sent: {message.sid}")
-        return True
-    except Exception as e:
-        print(f"Twilio SMS Error: {e}")
-        return False
+        cursor.execute(query, params)
+        
+        if commit:
+            conn.commit()
+            result = True
+        elif fetch_one:
+            result = cursor.fetchone()
+        else:
+            result = cursor.fetchall()
+            
+        cursor.close()
+    except mysql.connector.Error as err:
+        print(f"Database Error: {err}")
+        if conn: conn.rollback()
+        raise
+    finally:
+        if conn and conn.is_connected():
+            conn.close()
+    return result
 
-# --- 3. ROUTES ---
+
+# --- 3. HELPER FUNCTIONS ---
+# ... (send_winner_sms remains the same) ...
+
+
+# --- 4. ROUTES (Updated to use the new execute_query function) ---
 
 @app.route('/')
 def index():
     """Home Page Route"""
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT event_id, name, event_date FROM events WHERE event_date >= %s ORDER BY event_date ASC LIMIT 3", (date.today(),))
-    upcoming_events = cur.fetchall()
-    cur.close()
+    query = "SELECT event_id, name, event_date FROM events WHERE event_date >= %s ORDER BY event_date ASC LIMIT 3"
+    upcoming_events = execute_query(query, (date.today(),))
+    
     return render_template('index.html', events=upcoming_events)
 
 
@@ -75,50 +87,47 @@ def add_event():
     current_date = date.today()
 
     if request.method == 'POST':
-        # --- DELETE EVENT LOGIC (CORRECTED) ---
+        # --- DELETE EVENT LOGIC ---
         if 'delete_event_id' in request.form:
             event_id = request.form['delete_event_id']
-            cur = mysql.connection.cursor()
             try:
-                # 1. Check if the event has any winners (the absolute safety constraint)
-                cur.execute("SELECT COUNT(winner_id) AS winner_count FROM winners WHERE event_id = %s", (event_id,))
-                winner_count = cur.fetchone()['winner_count']
+                # 1. Check if the event has any winners
+                query_count = "SELECT COUNT(winner_id) AS winner_count FROM winners WHERE event_id = %s"
+                winner_count = execute_query(query_count, (event_id,), fetch_one=True)['winner_count']
                 
                 if winner_count > 0:
-                    # Deletion fails if a winner is recorded
                     flash(f'Error: Event cannot be deleted as it already has {winner_count} recorded winners.', 'danger')
                 else:
-                    # Deletion succeeds if no winners, regardless of event date
-                    cur.execute("DELETE FROM participants WHERE event_id = %s", (event_id,))
-                    cur.execute("DELETE FROM events WHERE event_id = %s", (event_id,))
-                    mysql.connection.commit()
+                    # 2. Perform deletion (safely delete participants first, then event)
+                    query_del_p = "DELETE FROM participants WHERE event_id = %s"
+                    execute_query(query_del_p, (event_id,), commit=True)
+
+                    query_del_e = "DELETE FROM events WHERE event_id = %s"
+                    execute_query(query_del_e, (event_id,), commit=True)
+                    
                     flash('Event and associated participants deleted successfully!', 'success')
             except Exception as e:
                 flash(f'Database Error during event deletion: {e}', 'danger')
             finally:
-                cur.close()
                 return redirect(url_for('add_event'))
         
         # --- ADD EVENT LOGIC ---
         event_name = request.form['event_name']
         event_date = request.form['event_date']
         
-        cur = mysql.connection.cursor()
         try:
-            cur.execute("INSERT INTO events (name, event_date) VALUES (%s, %s)", (event_name, event_date))
-            mysql.connection.commit()
+            query = "INSERT INTO events (name, event_date) VALUES (%s, %s)"
+            execute_query(query, (event_name, event_date), commit=True)
             flash('Event added successfully!', 'success')
         except Exception as e:
-            flash(f'Error adding event (name unique constraint?): {e}', 'danger')
+            # Check for unique constraint error specifically if needed, otherwise general flash
+            flash(f'Error adding event: {e}', 'danger')
         finally:
-            cur.close()
             return redirect(url_for('add_event'))
 
     # For GET request: Fetch all events to display in the table
-    cur = mysql.connection.cursor()
-    cur.execute("SELECT event_id, name, event_date FROM events ORDER BY event_date DESC")
-    existing_events = cur.fetchall()
-    cur.close()
+    query = "SELECT event_id, name, event_date FROM events ORDER BY event_date DESC"
+    existing_events = execute_query(query)
     
     return render_template('add-event.html', 
                            existing_events=existing_events, 
@@ -128,20 +137,19 @@ def add_event():
 @app.route('/delete-participant/<int:participant_id>/<int:event_id>', methods=['POST'])
 def delete_participant(participant_id, event_id):
     """Deletes a specific participant."""
-    cur = mysql.connection.cursor()
     try:
-        # Check if participant has won a prize before deleting (optional extra safety)
-        cur.execute("SELECT COUNT(winner_id) AS win_count FROM winners WHERE participant_id = %s AND event_id = %s", (participant_id, event_id))
-        if cur.fetchone()['win_count'] > 0:
+        # Check if participant has won a prize before deleting
+        query_count = "SELECT COUNT(winner_id) AS win_count FROM winners WHERE participant_id = %s AND event_id = %s"
+        win_count = execute_query(query_count, (participant_id, event_id), fetch_one=True)['win_count']
+
+        if win_count > 0:
             flash('Error: Cannot delete a participant who has already won a prize in this event.', 'danger')
         else:
-            cur.execute("DELETE FROM participants WHERE participant_id = %s", (participant_id,))
-            mysql.connection.commit()
+            query_delete = "DELETE FROM participants WHERE participant_id = %s"
+            execute_query(query_delete, (participant_id,), commit=True)
             flash('Participant deleted successfully!', 'info')
     except Exception as e:
         flash(f'Error deleting participant: {e}', 'danger')
-    finally:
-        cur.close()
     
     # Redirect back to the participant list for the specific event
     return redirect(url_for('add_participant', event_id=event_id))
@@ -150,7 +158,6 @@ def delete_participant(participant_id, event_id):
 @app.route('/add-participant', methods=['GET', 'POST'])
 def add_participant():
     """Route to handle participant registration AND viewing participants by event."""
-    cur = mysql.connection.cursor()
     
     # 1. Handle Event Dropdown and Participants List (GET/URL parameter)
     selected_event_id = request.args.get('event_id', type=int)
@@ -158,22 +165,22 @@ def add_participant():
     registered_participants = []
     
     # Fetch active events for the dropdown
-    cur.execute("SELECT event_id, name FROM events WHERE event_date >= %s ORDER BY event_date ASC", (date.today(),))
-    active_events = cur.fetchall()
+    query_active = "SELECT event_id, name FROM events WHERE event_date >= %s ORDER BY event_date ASC"
+    active_events = execute_query(query_active, (date.today(),))
     
     if selected_event_id:
         # Fetch event details
-        cur.execute("SELECT event_id, name FROM events WHERE event_id = %s", (selected_event_id,))
-        current_event = cur.fetchone()
+        query_event = "SELECT event_id, name FROM events WHERE event_id = %s"
+        current_event = execute_query(query_event, (selected_event_id,), fetch_one=True)
 
         # Fetch all participants for the selected event
-        cur.execute("""
+        query_participants = """
             SELECT participant_id, name, contact_info, registration_time
             FROM participants
             WHERE event_id = %s
             ORDER BY registration_time DESC
-        """, (selected_event_id,))
-        registered_participants = cur.fetchall()
+        """
+        registered_participants = execute_query(query_participants, (selected_event_id,))
 
 
     # 2. Handle Form Submission (POST)
@@ -192,18 +199,14 @@ def add_participant():
 
         try:
             # Insert new participant
-            cur.execute("INSERT INTO participants (event_id, name, contact_info) VALUES (%s, %s, %s)", 
-                        (event_id, p_name, contact))
-            mysql.connection.commit()
+            query_insert = "INSERT INTO participants (event_id, name, contact_info) VALUES (%s, %s, %s)"
+            execute_query(query_insert, (event_id, p_name, contact), commit=True)
             flash(f'{p_name} added successfully!', 'success')
         except Exception as e:
             flash(f'Error adding participant: {e}', 'danger')
         finally:
-            cur.close()
-            # Redirect, keeping the selected event ID in the URL to refresh the list
             return redirect(url_for('add_participant', event_id=event_id))
 
-    cur.close()
     return render_template('add-participant.html', 
                            active_events=active_events,
                            current_event=current_event,
@@ -212,11 +215,10 @@ def add_participant():
 
 @app.route('/draw-winner', methods=['GET', 'POST'])
 def draw_winner():
-    # ... (draw_winner logic remains the same as it was already correct)
-    cur = mysql.connection.cursor()
+    """Route to handle the lucky draw process, ensuring one winner per prize."""
     
-    cur.execute("SELECT event_id, name FROM events WHERE event_date >= %s ORDER BY event_date ASC", (date.today(),))
-    draw_events = cur.fetchall()
+    query_events = "SELECT event_id, name FROM events WHERE event_date >= %s ORDER BY event_date ASC"
+    draw_events = execute_query(query_events, (date.today(),))
     
     winner_result = None
 
@@ -225,18 +227,19 @@ def draw_winner():
         prize_name = request.form['prize_name']
         
         # Get Event Name for SMS
-        cur.execute("SELECT name FROM events WHERE event_id = %s", (event_id,))
-        event_name = cur.fetchone()['name'] if cur.rowcount else 'Unknown Event'
+        query_event_name = "SELECT name FROM events WHERE event_id = %s"
+        event_data = execute_query(query_event_name, (event_id,), fetch_one=True)
+        event_name = event_data['name'] if event_data else 'Unknown Event'
 
         try:
             # 1. Check if this prize name has already been drawn for this event
-            cur.execute("SELECT winner_id FROM winners WHERE event_id = %s AND prize_name = %s", (event_id, prize_name))
-            if cur.rowcount > 0:
+            query_prize_check = "SELECT winner_id FROM winners WHERE event_id = %s AND prize_name = %s"
+            if execute_query(query_prize_check, (event_id, prize_name)):
                 flash(f'A winner has already been drawn for the prize: "{prize_name}" in this event.', 'warning')
                 return redirect(url_for('draw_winner'))
             
             # 2. Select a random eligible participant (HAVING COUNT(w.winner_id) = 0 enforces ONE PRIZE PER PERSON PER EVENT)
-            cur.execute("""
+            query_winner = """
                 SELECT p.participant_id, p.name, p.contact_info
                 FROM participants p
                 LEFT JOIN winners w ON p.participant_id = w.participant_id AND w.event_id = %s
@@ -245,15 +248,13 @@ def draw_winner():
                 HAVING COUNT(w.winner_id) = 0 
                 ORDER BY RAND() 
                 LIMIT 1
-            """, (event_id, event_id))
-            
-            winner = cur.fetchone()
+            """
+            winner = execute_query(query_winner, (event_id, event_id), fetch_one=True)
 
             if winner:
                 # 3. Insert the winner record
-                cur.execute("INSERT INTO winners (event_id, participant_id, prize_name) VALUES (%s, %s, %s)", 
-                            (event_id, winner['participant_id'], prize_name))
-                mysql.connection.commit()
+                query_insert_winner = "INSERT INTO winners (event_id, participant_id, prize_name) VALUES (%s, %s, %s)"
+                execute_query(query_insert_winner, (event_id, winner['participant_id'], prize_name), commit=True)
                 
                 winner_result = {
                     'name': winner['name'],
@@ -272,19 +273,14 @@ def draw_winner():
                 flash('No eligible participants remaining for this draw, or all participants have won a prize.', 'warning')
         except Exception as e:
             flash(f'Error conducting draw: {e}', 'danger')
-        finally:
-            cur.close()
             
     return render_template('draw-winner.html', draw_events=draw_events, winner_result=winner_result)
 
 
 @app.route('/view-winners')
 def view_winners():
-    # ... (view_winners route remains the same) ...
-    cur = mysql.connection.cursor()
-    
-    # Select all winner details using JOINs
-    cur.execute("""
+    """Route to display all past winners"""
+    query = """
         SELECT 
             w.prize_name, w.draw_time,
             e.name AS event_name, 
@@ -294,12 +290,16 @@ def view_winners():
         JOIN events e ON w.event_id = e.event_id
         JOIN participants p ON w.participant_id = p.participant_id
         ORDER BY w.draw_time DESC
-    """)
+    """
+    winners = execute_query(query)
     
-    winners = cur.fetchall()
-    cur.close()
     return render_template('view-winners.html', winners=winners)
 
 
 if __name__ == '__main__':
+    # NOTE: Set your OS environment variables (e.g., in your shell or a .env file)
+    # export my_sql_pass='Spcsb@2124'
+    # export account_sid='YOUR_TWILIO_SID' 
+    # export auth_token='YOUR_TWILIO_TOKEN'
+    # export twilio_number='+1234567890' 
     app.run(debug=True)
