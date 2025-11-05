@@ -17,25 +17,25 @@
 
     <style>
         :root {
-            /* Festive Theme Colors */
-            --bs-primary: #DC143C; /* Deep Pink/Crimson */
-            --bs-secondary: #008080; /* Teal/Accent */
-            --bs-success: #28a745;
-            --bs-info: #FFD700; /* Gold */
-            --bs-dark-text: #333333;
-            --bs-light-bg: #F8F9FA;
+            /* === Blue & Teal Theme (from index.html) === */
+            --primary: #007BFF;      /* Clean blue */
+            --secondary: #20c997;    /* Teal-green accent */
+            --accent: #FFB703;      /* Warm yellow highlight */
+            --bg-light: #F4F6F8;     /* Soft background */
+            --text-dark: #343A40;
         }
 
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: var(--bs-light-bg);
+            background-color: var(--bg-light);
             display: flex;
             flex-direction: column;
             min-height: 100vh;
         }
 
         .navbar {
-            background-color: var(--bs-primary) !important;
+            /* Use the new blue primary color */
+            background-color: var(--primary) !important;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
@@ -44,13 +44,21 @@
             color: white !important;
         }
 
-        h1, h2, h3 {
-            font-family: 'Poppins', sans-serif;
-            color: var(--bs-dark-text);
+        /* Added for active nav link highlighting */
+        .nav-link.active {
+            font-weight: bold;
+            text-decoration: underline;
+            text-underline-offset: 4px;
         }
 
+        h1, h2, h3 {
+            font-family: 'Poppins', sans-serif;
+            color: var(--text-dark);
+        }
+
+        /* Table header uses the teal-green accent */
         .table thead {
-            background-color: var(--bs-secondary);
+            background-color: var(--secondary);
             color: white;
         }
         
@@ -59,6 +67,7 @@
             padding-top: 60px; /* Offset for fixed navbar */
         }
 
+        /* Table sorting styles */
         .sortable {
             cursor: pointer;
             user-select: none;
@@ -109,7 +118,7 @@
 
         <div class="container my-5">
 
-            <h1 class="text-center mb-4" style="color: var(--bs-primary);">
+            <h1 class="text-center mb-4" style="color: var(--primary);">
                 <i class="bi bi-award-fill me-2"></i> Event Winners History
             </h1>
             <hr class="mb-5">
@@ -124,9 +133,8 @@
                 <div class="col-md-4">
                     <select class="form-select" name="event_filter" id="eventFilter">
                         <option value="" selected>Filter by All Events</option>
-                        <option value="Diwali">Diwali Grand Raffle</option>
-                        <option value="Dussehra">Dussehra Bumper Prize</option>
-                        <option value="Ganesh">Ganesh Utsav Draw</option>
+                        <option value="1">Event 1</option>
+                        <option value="2">Event 2</option>
                     </select>
                 </div>
                 <div class="col-md-2 text-md-end">
@@ -135,7 +143,7 @@
             </form>
 
             <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle shadow-sm" id="winnersTable">
+                <table class="table table-striped table-hover align-middle shadow-sm bg-white" id="winnersTable">
                     <thead>
                         <tr>
                             <th class="sortable" data-sort="event">Event Name <i class="bi bi-chevron-expand"></i></th>
@@ -151,8 +159,8 @@
                             <td>{{ winner.event_name }}</td>
                             <td>{{ winner.winner_name }}</td>
                             <td>{{ winner.contact_info }}</td>
-                            <td><span class="fw-bold">{{ winner.prize_name }}</span></td>
-                            <td>{{ winner.draw_time }}</td>
+                            <td><span class="fw-bold" style="color: var(--primary);">{{ winner.prize_name }}</span></td>
+                            <td>{{ winner.draw_time.strftime('%Y-%m-%d %H:%M') }}</td>
                         </tr>
                         {% else %}
                         <tr>
@@ -164,7 +172,7 @@
             </div>
             
             <div class="text-center mt-4">
-                <a href="#" class="btn btn-primary" style="background-color: var(--bs-primary); border-color: var(--bs-primary);">
+                <a href="#" class="btn btn-primary">
                     <i class="bi bi-cloud-download me-2"></i> Export to CSV
                 </a>
             </div>
@@ -183,11 +191,12 @@
             crossorigin="anonymous"></script>
 
     <script>
+        // This JavaScript for sorting the table will work as-is.
         document.querySelectorAll('.sortable').forEach(header => {
             header.addEventListener('click', () => {
                 const table = document.getElementById('winnersTable');
                 const tbody = table.querySelector('tbody');
-                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const rows = Array.from(tbody.querySelectorAll('tr:not(:first-child)')); // Avoid sorting the 'else' row
                 const columnIndex = Array.from(header.parentNode.children).indexOf(header);
                 
                 // Determine sort direction
