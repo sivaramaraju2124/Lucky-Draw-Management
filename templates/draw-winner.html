@@ -17,24 +17,25 @@
 
     <style>
         :root {
-            /* Festive Theme Colors */
-            --bs-primary: #DC143C; /* Deep Pink/Crimson */
-            --bs-secondary: #008080; /* Teal/Accent */
-            --bs-success: #28a745;
-            --bs-info: #FFD700; /* Gold */
-            --bs-dark-text: #333333;
+            /* === Blue & Teal Theme (from index.html) === */
+            --primary: #007BFF;      /* Clean blue */
+            --secondary: #20c997;    /* Teal-green accent */
+            --accent: #FFB703;      /* Warm yellow highlight */
+            --bg-light: #F4F6F8;     /* Soft background */
+            --text-dark: #343A40;
         }
 
         body {
             font-family: 'Roboto', sans-serif;
-            background-color: var(--bs-light-bg);
+            background-color: var(--bg-light);
             display: flex;
             flex-direction: column;
             min-height: 100vh;
         }
 
         .navbar {
-            background-color: var(--bs-primary) !important;
+            /* Use the new blue primary color */
+            background-color: var(--primary) !important;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
@@ -42,38 +43,43 @@
             font-family: 'Poppins', sans-serif;
             color: white !important;
         }
+        
+        /* Added for active nav link highlighting */
+        .nav-link.active {
+            font-weight: bold;
+            text-decoration: underline;
+            text-underline-offset: 4px;
+        }
 
         h1, h2, h3 {
             font-family: 'Poppins', sans-serif;
-            color: var(--bs-dark-text);
+            color: var(--text-dark);
         }
 
-        /* Draw Button (Primary Color, Highly Prominent) */
-        .btn-draw {
-            background-color: var(--bs-primary);
-            border-color: var(--bs-primary);
+        /* Using the .btn-modern style from index.html */
+        .btn-modern {
+            background-color: var(--secondary);
             color: white;
+            border: none;
             transition: all 0.3s ease;
-            box-shadow: 0 5px 15px rgba(220, 20, 60, 0.5); /* Strong shadow */
+            box-shadow: 0 4px 8px rgba(32, 201, 151, 0.3);
         }
 
-        .btn-draw:hover {
-            background-color: #a30e2f; /* Darker pink on hover */
-            border-color: #a30e2f;
-            transform: scale(1.02); /* Slight zoom-in effect */
-            box-shadow: 0 8px 20px rgba(220, 20, 60, 0.6);
-            color: white;
+        .btn-modern:hover {
+            background-color: #17a589;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(32, 201, 151, 0.4);
         }
 
-        /* Winner Display Card Styling */
+        /* Winner Display Card Styling (using new theme) */
         .winner-card {
-            border: 3px solid var(--bs-info); /* Gold border */
-            background-color: #fff9e6; /* Lightest gold background */
-            box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+            border: 3px solid var(--accent); /* Yellow accent border */
+            background-color: #fffaf0; /* Light yellow background */
+            box-shadow: 0 10px 30px rgba(255, 183, 3, 0.2);
             transition: all 0.5s ease-out;
         }
         
-        /* Optional: Winner Reveal Animation */
+        /* Winner Reveal Animation */
         @keyframes reveal {
             0% { opacity: 0; transform: translateY(20px) scale(0.8); }
             100% { opacity: 1; transform: translateY(0) scale(1); }
@@ -129,14 +135,14 @@
 
         <div class="container my-5">
 
-            <h1 class="text-center mb-4" style="color: var(--bs-primary);">
+            <h1 class="text-center mb-4" style="color: var(--primary);">
                 <i class="bi bi-trophy-fill me-2"></i> Conduct Lucky Draw
             </h1>
             <hr class="mb-5">
 
             <div class="row justify-content-center">
                 <div class="col-lg-7 col-md-10">
-                    <div class="card shadow-lg p-4 mb-5">
+                    <div class="card shadow-lg p-4 mb-5 border-0">
                         <div class="card-body">
                             <h3 class="card-title mb-4 text-center">Select Draw Parameters</h3>
 
@@ -160,11 +166,11 @@
                                 <div class="mb-5">
                                     <label for="prizeName" class="form-label fw-bold">Prize Name</label>
                                     <input type="text" class="form-control form-control-lg" id="prizeName" 
-                                           name="prize_name" placeholder="e.g., Smartwatch, Holiday Voucher, Cash Prize" required>
+                                           name="prize_name" placeholder="e.g., Smartwatch, Holiday Voucher" required>
                                 </div>
                                 
                                 <div class="d-grid">
-                                    <button type="submit" class="btn btn-lg btn-draw">
+                                    <button type="submit" class="btn btn-lg btn-modern">
                                         <i class="bi bi-star-fill me-2"></i> DRAW WINNER! 
                                     </button>
                                 </div>
@@ -185,7 +191,7 @@
                             <i class="bi bi-patch-check-fill text-success" style="font-size: 3rem;"></i>
                             <h2 class="text-success mb-4">WE HAVE A WINNER! 🎉</h2>
                             
-                            <h3 class="fw-bold mb-3" style="color: var(--bs-primary); font-size: 2.5rem;">
+                            <h3 class="fw-bold mb-3" style="color: var(--primary); font-size: 2.5rem;">
                                 {{ winner_result.name }}
                             </h3>
                             
@@ -194,14 +200,14 @@
                             <div class="row g-3 justify-content-center">
                                 <div class="col-md-6">
                                     <p class="mb-1 text-muted">Prize Won:</p>
-                                    <p class="fw-bold fs-4" style="color: var(--bs-secondary);">
-                                        {{ winner_result.prize }}
+                                    <p class="fw-bold fs-4" style="color: var(--secondary);">
+                                        {{ request.form.prize_name }} 
                                     </p>
                                 </div>
                                 <div class="col-md-6">
                                     <p class="mb-1 text-muted">Contact Info:</p>
                                     <p class="fw-bold fs-4">
-                                        {{ winner_result.contact }}
+                                        {{ winner_result.contact_info }}
                                     </p>
                                 </div>
                             </div>
